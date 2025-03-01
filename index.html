@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FAMILY MEMO</title>
+    <style>
+        /* Основные стили */
+        body {
+            background: linear-gradient(90deg, #a029ee, #7f0e68);
+            margin-top: 80px;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-family: Arial, sans-serif;
+            flex-direction: column;
+        }
+        h1 {
+            color: #fff;
+            text-align: center;
+        }
+        .game-board {
+            display: grid;
+            grid-template-columns: repeat(7, 100px);
+            grid-template-rows: repeat(7, 80px);
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .card {
+            width: 100px;
+            height: 80px;
+            background: #fff;
+            border-radius: 10px;
+            cursor: pointer;
+            perspective: 1000px;
+            position: relative;
+            transform-style: preserve-3d;
+            transition: transform 0.5s;
+        }
+        .card.flipped {
+            transform: rotateY(180deg);
+        }
+        .card.matched {
+            visibility: hidden;
+        }
+        .card .front, .card .back {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            backface-visibility: hidden;
+            border-radius: 10px;
+        }
+        .card .front {
+            background: #fff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 24px;
+        }
+        .card .back {
+            background: #7f0e68;
+            transform: rotateY(180deg);
+        }
+        .card img {
+            width: 100%;
+            height: 100%;
+            border-radius: 10px;
+        }
+        .score {
+            color: #fff;
+            font-size: 18px;
+            margin-top: 20px;
+        }
+        .settings-btn {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 10px;
+            background: #fff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .settings-menu {
+            display: none;
+            position: fixed;
+            top: 60px;
+            right: 20px;
+            background: #fff;
+            border-radius: 5px;
+            padding: 10px;
+            flex-direction: column;
+        }
+        .settings-menu button {
+            margin: 5px 0;
+            padding: 5px 10px;
+            cursor: pointer;
+        }
+        .result-screen {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            color: #fff;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+        }
+        .result-screen h2 {
+            font-size: 32px;
+        }
+        .result-screen button {
+            padding: 10px 20px;
+            font-size: 18px;
+            margin-top: 20px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="score" id="scoreContainer">Игрок 1: <span id="score1">0</span></div>
+    <div class="game-board" id="gameBoard"></div>
+    <button class="settings-btn" onclick="toggleSettingsMenu()">⚙️</button>
+    <div class="settings-menu" id="settingsMenu">
+        <button onclick="setPlayers(2)">2 игрока</button>
+        <button onclick="setPlayers(3)">3 игрока</button>
+        <button onclick="setPlayers(4)">4 игрока</button>
+    </div>
+    <div class="result-screen" id="resultScreen">
+        <h2 id="resultText"></h2>
+        <button onclick="resetGame()">Играть снова</button>
+    </div>
+
+    <script>
+        // Список городов и их изображений
+        const cities = [
+            { name: "Антон", image: "1.webp" },
+            { name: "Катя", image: "2.webp" },
+            { name: "Егор", image: "3.webp" },
+            { name: "Тимофей", image: "4.webp" },
+            { name: "Миша", image: "6.webp" },
+            { name: "Артем", image: "5.webp" },
+            { name: "Папа", image: "7.webp" },
+            { name: "Елисей", image: "8.webp" },
+            { name: "Настя", image: "9.webp" },
+            { name: "Мирон", image: "10.webp" },
+            { name: "Захар", image: "11.webp" },
+            { name: "Алёна", image: "12.webp" },
+            { name: "Алина", image: "13.webp" },
+            { name: "Саша", image: "14.webp" },
+        ];
+
+        // Создаем пары карточек
+        const cards = [...cities, ...cities];
+        cards.sort(() => Math.random() - 0.5);
+
+        // Создаем игровое поле
+        const gameBoard = document.getElementById('gameBoard');
+        const scoreContainer = document.getElementById('scoreContainer');
+        const resultScreen = document.getElementById('resultScreen');
+        const resultText = document.getElementById('resultText');
+        const settingsMenu = document.getElementById('settingsMenu');
+
+        let flippedCards = [];
+        let matchedPairs = 0;
+        let currentPlayer = 1;
+        let players = 1;
+        let playerScores = [0];
+
+        // Функция для обновления счета
+        function updateScore() {
+            scoreContainer.innerHTML = '';
+            for (let i = 0; i < players; i++) {
+                const scoreElement = document.createElement('span');
+                scoreElement.textContent = `Игрок ${i + 1}: ${playerScores[i]} `;
+                scoreContainer.appendChild(scoreElement);
+            }
+        }
+
+        // Создаем карточки
+        cards.forEach((city, index) => {
+            const card = document.createElement('div');
+            card.classList.add('card');
+            card.dataset.index = index;
+            card.dataset.name = city.name;
+            card.innerHTML = `
+                <div class="front"></div>
+                <div class="back"><img src="${city.image}" alt="${city.name}"></div>
+            `;
+            card.addEventListener('click', () => flipCard(card));
+            gameBoard.appendChild(card);
+        });
+
+        // Функция переворота карточки
+        function flipCard(card) {
+            if (flippedCards.length < 2 && !card.classList.contains('flipped')) {
+                card.classList.add('flipped');
+                flippedCards.push(card);
+
+                if (flippedCards.length === 2) {
+                    setTimeout(checkMatch, 1000);
+                }
+            }
+        }
+
+        // Проверка совпадения карточек
+        function checkMatch() {
+            const [card1, card2] = flippedCards;
+
+            if (card1.dataset.name === card2.dataset.name) {
+                card1.classList.add('matched');
+                card2.classList.add('matched');
+                matchedPairs++;
+
+                // Обновляем счет текущего игрока
+                playerScores[currentPlayer - 1]++;
+                updateScore();
+
+                // Проверяем завершение игры
+                if (matchedPairs === cities.length) {
+                    showResult();
+                }
+            } else {
+                card1.classList.remove('flipped');
+                card2.classList.remove('flipped');
+                currentPlayer = (currentPlayer % players) + 1; // Смена игрока
+            }
+
+            flippedCards = [];
+        }
+
+        // Показ результата игры
+        function showResult() {
+            const maxScore = Math.max(...playerScores);
+            const winners = playerScores.reduce((acc, score, index) => {
+                if (score === maxScore) acc.push(index + 1);
+                return acc;
+            }, []);
+
+            if (winners.length === 1) {
+                resultText.textContent = `Игрок ${winners[0]} выиграл!`;
+            } else {
+                resultText.textContent = `Ничья между игроками: ${winners.join(', ')}!`;
+            }
+            resultScreen.style.display = 'flex';
+        }
+
+        // Сброс игры
+        function resetGame() {
+            resultScreen.style.display = 'none';
+            gameBoard.innerHTML = '';
+            flippedCards = [];
+            matchedPairs = 0;
+            currentPlayer = 1;
+            playerScores = new Array(players).fill(0);
+            updateScore();
+            cards.sort(() => Math.random() - 0.5);
+            cards.forEach((city, index) => {
+                const card = document.createElement('div');
+                card.classList.add('card');
+                card.dataset.index = index;
+                card.dataset.name = city.name;
+                card.innerHTML = `
+                    <div class="front"></div>
+                    <div class="back"><img src="${city.image}" alt="${city.name}"></div>
+                `;
+                card.addEventListener('click', () => flipCard(card));
+                gameBoard.appendChild(card);
+            });
+        }
+
+        // Полноэкранный режим
+        function enterFullscreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen();
+            }
+        }
+
+        // Переход в полноэкранный режим при любом нажатии
+        document.addEventListener('click', enterFullscreen);
+
+        // Открытие/закрытие меню настроек
+        function toggleSettingsMenu() {
+            settingsMenu.style.display = settingsMenu.style.display === 'flex' ? 'none' : 'flex';
+        }
+
+        // Установка количества игроков
+        function setPlayers(num) {
+            players = num;
+            playerScores = new Array(num).fill(0);
+            updateScore();
+            toggleSettingsMenu();
+            resetGame(); // Перезапуск игры с новым количеством игроков
+        }
+    </script>
+</body>
+</html>
